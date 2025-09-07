@@ -176,9 +176,10 @@ pip install -r requirements.txt
 # Set up environment variables
 cp .env.example .env
 # Edit .env with your configuration:
-# - SUPABASE_URL and SUPABASE_KEY
-# - OPENAI_API_KEY
-# - MICROSOFT_CLIENT_ID and CLIENT_SECRET
+# - SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY (Supabase Configuration)
+# - OPENAI_API_KEY (OpenAI Configuration)
+# - AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID (Azure/Microsoft Graph Configuration)
+# - ONEDRIVE_API_URL (OneDrive API endpoint)
 
 # Start the development server
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
