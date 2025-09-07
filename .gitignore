@@ -7,6 +7,12 @@ __pycache__/
 .env
 .env.local
 
+# Documentation with sensitive info
+CLAUDE.md
+
+# Development and testing files
+backend/test_*.py
+
 # Build outputs
 build/
 dist/
