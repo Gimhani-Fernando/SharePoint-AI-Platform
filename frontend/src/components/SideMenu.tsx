@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useState, useEffect } from 'react';
 import { styled } from '@mui/material/styles';
 import Avatar from '@mui/material/Avatar';
 import MuiDrawer, { drawerClasses } from '@mui/material/Drawer';
@@ -8,6 +9,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import MenuContent from './MenuContent';
 import OptionsMenu from './OptionsMenu';
+import { apiService } from '../services/api';
 
 const drawerWidth = 240;
 
@@ -22,7 +24,56 @@ const Drawer = styled(MuiDrawer)({
   },
 });
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+}
+
 export default function SideMenu() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCurrentUser();
+  }, []);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const userEmail = localStorage.getItem('user_email');
+      if (!userEmail) {
+        setLoading(false);
+        return;
+      }
+
+      const user = await apiService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      // Fallback to localStorage email
+      const userEmail = localStorage.getItem('user_email');
+      if (userEmail) {
+        setCurrentUser({
+          id: 'unknown',
+          name: userEmail.split('@')[0] || 'User',
+          email: userEmail
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getUserInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
   return (
     <Drawer
       variant="permanent"
@@ -89,17 +140,19 @@ export default function SideMenu() {
           sx={{ 
             width: 36, 
             height: 36,
-            bgcolor: 'primary.main'
+            bgcolor: 'primary.main',
+            fontSize: '0.875rem',
+            fontWeight: 600
           }}
         >
-          U
+          {currentUser ? getUserInitials(currentUser.name) : 'U'}
         </Avatar>
         <Box sx={{ mr: 'auto' }}>
           <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: '16px' }}>
-            Demo User
+            {loading ? 'Loading...' : currentUser ? currentUser.name : 'Guest User'}
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            user@company.com
+            {loading ? 'Loading...' : currentUser ? currentUser.email : localStorage.getItem('user_email') || 'No email'}
           </Typography>
         </Box>
         <OptionsMenu />

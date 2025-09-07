@@ -24,9 +24,6 @@ import {
   TrendingUp,
   PlayArrow,
   CheckCircle,
-  Analytics,
-  CloudUpload,
-  Settings,
   ArrowUpward,
   MoreVert,
 } from '@mui/icons-material';
@@ -40,6 +37,8 @@ interface Assignment {
   due_date: string | null;
   projects?: { name: string };
   assignee_id?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 interface Stats {
@@ -235,7 +234,8 @@ export default function DashboardHome() {
         display: 'grid', 
         gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, 
         gap: 3,
-        minHeight: '600px' // Set minimum height for the grid
+        minHeight: '600px', // Back to minHeight to allow growth
+        alignItems: 'start' // Allow natural heights
       }}>
         {/* Progress Overview */}
         <Box>
@@ -332,10 +332,13 @@ export default function DashboardHome() {
         </Box>
 
         {/* Right Sidebar */}
-        <Box sx={{ height: '100%' }}>
-          <Stack spacing={3} sx={{ height: '100%' }}>
+        <Box>
+          <Stack spacing={3}>
             {/* Completion Progress */}
-            <Card sx={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+            <Card sx={{ 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              flex: '0 0 auto' // Don't grow, maintain size
+            }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
                   Overall Progress
@@ -428,9 +431,10 @@ export default function DashboardHome() {
             {/* Recent Activity */}
             <Card sx={{ 
               boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-              flexGrow: 1,
+              flex: '1 1 auto', // Grow to fill remaining space
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              minHeight: 0 // Allow shrinking
             }}>
               <CardContent sx={{ 
                 p: 3,
@@ -447,11 +451,31 @@ export default function DashboardHome() {
                   </IconButton>
                 </Box>
                 
-                <List sx={{ 
-                  '& .MuiListItem-root': { px: 0, py: 1.5 },
+                <Box sx={{ 
                   flexGrow: 1,
-                  overflow: 'auto'
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
                 }}>
+                  <List sx={{ 
+                    '& .MuiListItem-root': { px: 0, py: 1.5 },
+                    flex: '1 1 auto',
+                    overflow: 'auto',
+                    minHeight: 0, // Allow shrinking
+                    '&::-webkit-scrollbar': {
+                      width: '6px'
+                    },
+                    '&::-webkit-scrollbar-track': {
+                      bgcolor: 'transparent'
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      bgcolor: 'grey.300',
+                      borderRadius: '10px',
+                      '&:hover': {
+                        bgcolor: 'grey.400'
+                      }
+                    }
+                  }}>
                   {assignments.length === 0 ? (
                     <Box sx={{ textAlign: 'center', py: 4 }}>
                       <Typography variant="body2" color="text.secondary">
@@ -462,113 +486,85 @@ export default function DashboardHome() {
                       </Typography>
                     </Box>
                   ) : (
-                    <Box sx={{ textAlign: 'center', py: 2 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Check your assignments above for recent activity
-                      </Typography>
-                    </Box>
+                    assignments.slice(0, 5).map((assignment) => {
+                      const getActivityText = () => {
+                        switch (assignment.status) {
+                          case 'completed':
+                            return 'Completed assignment';
+                          case 'in-progress':
+                            return assignment.progress > 50 ? 'Making good progress on' : 'Started working on';
+                          default:
+                            return 'Created assignment';
+                        }
+                      };
+
+                      const getActivityIcon = () => {
+                        switch (assignment.status) {
+                          case 'completed':
+                            return <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />;
+                          case 'in-progress':
+                            return <PlayArrow sx={{ fontSize: 16, color: 'primary.main' }} />;
+                          default:
+                            return <Assignment sx={{ fontSize: 16, color: 'text.secondary' }} />;
+                        }
+                      };
+
+                      const getTimeAgo = (dateString: string) => {
+                        const date = new Date(dateString);
+                        const now = new Date();
+                        const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+                        
+                        if (diffInHours < 1) return 'Just now';
+                        if (diffInHours < 24) return `${diffInHours}h ago`;
+                        const diffInDays = Math.floor(diffInHours / 24);
+                        if (diffInDays < 30) return `${diffInDays}d ago`;
+                        const diffInMonths = Math.floor(diffInDays / 30);
+                        return `${diffInMonths}mo ago`;
+                      };
+
+                      return (
+                        <ListItem key={assignment.id}>
+                          <ListItemIcon sx={{ minWidth: 32 }}>
+                            {getActivityIcon()}
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="body2" sx={{ flex: 1 }}>
+                                  {getActivityText()} "{assignment.title}"
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {getTimeAgo(assignment.updated_at || assignment.created_at)}
+                                </Typography>
+                              </Box>
+                            }
+                            secondary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                <Chip 
+                                  label={assignment.priority} 
+                                  size="small" 
+                                  color={assignment.priority === 'high' ? 'error' : assignment.priority === 'medium' ? 'warning' : 'default'}
+                                  sx={{ height: 16, fontSize: '0.7rem' }}
+                                />
+                                {assignment.status === 'in-progress' && (
+                                  <Typography variant="caption" color="primary.main" sx={{ fontWeight: 500 }}>
+                                    {assignment.progress}% complete
+                                  </Typography>
+                                )}
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                      );
+                    })
                   )}
                 </List>
+                </Box>
               </CardContent>
             </Card>
           </Stack>
         </Box>
 
-        {/* Quick Actions */}
-        <Box sx={{ gridColumn: { xs: '1', lg: '1 / -1' } }}>
-          <Card sx={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <CardContent sx={{ p: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5, fontSize: '0.95rem' }}>
-                Quick Actions
-              </Typography>
-              <Box sx={{ 
-                display: 'grid', 
-                gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr 1fr' },
-                gap: 1
-              }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<Assignment />}
-                  size="small"
-                  sx={{ 
-                    py: 1,
-                    px: 1.5,
-                    minHeight: 'auto',
-                    fontSize: '0.8rem',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    '&:hover': { 
-                      borderColor: 'primary.main',
-                      bgcolor: 'primary.50'
-                    }
-                  }}
-                >
-                  New Task
-                </Button>
-                
-                <Button
-                  variant="outlined"
-                  startIcon={<CloudUpload />}
-                  size="small"
-                  sx={{ 
-                    py: 1,
-                    px: 1.5,
-                    minHeight: 'auto',
-                    fontSize: '0.8rem',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    '&:hover': { 
-                      borderColor: 'primary.main',
-                      bgcolor: 'primary.50'
-                    }
-                  }}
-                >
-                  Upload
-                </Button>
-                
-                <Button
-                  variant="outlined"
-                  startIcon={<Analytics />}
-                  size="small"
-                  sx={{ 
-                    py: 1,
-                    px: 1.5,
-                    minHeight: 'auto',
-                    fontSize: '0.8rem',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    '&:hover': { 
-                      borderColor: 'primary.main',
-                      bgcolor: 'primary.50'
-                    }
-                  }}
-                >
-                  Analytics
-                </Button>
-                
-                <Button
-                  variant="outlined"
-                  startIcon={<Settings />}
-                  size="small"
-                  sx={{ 
-                    py: 1,
-                    px: 1.5,
-                    minHeight: 'auto',
-                    fontSize: '0.8rem',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    '&:hover': { 
-                      borderColor: 'primary.main',
-                      bgcolor: 'primary.50'
-                    }
-                  }}
-                >
-                  Settings
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
       </Box>
     </Box>
   );

@@ -165,6 +165,14 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  async getAssignmentInsights(assignmentId: string) {
+    const response = await fetch(`${API_BASE_URL}/api/assignments/${assignmentId}/insights`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
   // Document endpoints
   async getDocuments() {
     const response = await fetch(`${API_BASE_URL}/api/documents`, {
@@ -196,6 +204,26 @@ class ApiService {
 
   async searchDocuments(query: string) {
     const response = await fetch(`${API_BASE_URL}/api/documents/search/${encodeURIComponent(query)}`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async downloadDocument(documentId: string) {
+    const response = await fetch(`${API_BASE_URL}/api/documents/${documentId}/download`, {
+      headers: this.getHeaders(),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Download failed' }));
+      throw new Error(error.detail || 'Download failed');
+    }
+    
+    return response.blob();
+  }
+
+  async viewDocument(documentId: string) {
+    const response = await fetch(`${API_BASE_URL}/api/documents/${documentId}/view`, {
       headers: this.getHeaders(),
     });
     return this.handleResponse(response);

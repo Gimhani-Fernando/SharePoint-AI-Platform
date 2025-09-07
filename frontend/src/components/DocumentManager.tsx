@@ -83,6 +83,8 @@ export default function DocumentManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [viewDocument, setViewDocument] = useState<any>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   useEffect(() => {
     loadDocuments();
@@ -114,6 +116,65 @@ export default function DocumentManager() {
       });
     } catch (error) {
       console.error('Error loading document stats:', error);
+    }
+  };
+
+  const handleViewDocument = async (document: any) => {
+    try {
+      const response = await apiService.viewDocument(document.id);
+      setViewDocument(response);
+      setViewerOpen(true);
+    } catch (error) {
+      console.error('Error viewing document:', error);
+      alert('Failed to load document content');
+    }
+  };
+
+  const handleDownloadDocument = async (document: any) => {
+    try {
+      const blob = await apiService.downloadDocument(document.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = document.title || document.name || 'document';
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      alert('Failed to download document');
+    }
+  };
+
+  const handleShareDocument = async (document: any) => {
+    const shareData = {
+      title: document.title || document.name,
+      text: `Check out this document: ${document.title || document.name}`,
+      url: window.location.href
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        // Share completed successfully
+      } catch (error: any) {
+        // Handle share cancellation or other errors
+        if (error.name !== 'AbortError') {
+          // Only show error if it's not a user cancellation
+          console.error('Error sharing:', error);
+        }
+        // User cancelled share or share failed - do nothing
+      }
+    } else {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(`${shareData.title}\n${shareData.url}`);
+        alert('Document link copied to clipboard!');
+      } catch (error) {
+        console.error('Failed to copy to clipboard:', error);
+        alert('Failed to copy link to clipboard');
+      }
     }
   };
 
@@ -383,44 +444,107 @@ export default function DocumentManager() {
         mb: 4 
       }}>
         <Box>
-          <Card sx={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                Storage Usage
-              </Typography>
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Used: {actualStats.storage_used}</Typography>
-                  <Typography variant="body2">Limit: {actualStats.storage_limit}</Typography>
+          <Card sx={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)', height: '100%' }}>
+            <CardContent sx={{ 
+              p: 3, 
+              height: '100%', 
+              display: 'flex', 
+              flexDirection: 'column',
+              textAlign: 'center'
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                <Box sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  bgcolor: 'primary.main',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mr: 2
+                }}>
+                  <FolderOpen sx={{ fontSize: 24, color: 'white' }} />
+                </Box>
+                <Box sx={{ textAlign: 'left' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Storage Usage
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Track your storage consumption
+                  </Typography>
+                </Box>
+              </Box>
+              
+              <Box sx={{ mb: 2, flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    Used: {actualStats.storage_used}
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    Limit: {actualStats.storage_limit}
+                  </Typography>
                 </Box>
                 <LinearProgress
                   variant="determinate"
                   value={getStoragePercentage()}
-                  sx={{ height: 8, borderRadius: 4 }}
+                  sx={{ 
+                    height: 12, 
+                    borderRadius: 6,
+                    mb: 2,
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 6,
+                    }
+                  }}
                 />
+                <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+                  {Math.round(getStoragePercentage())}% Used
+                </Typography>
               </Box>
+              
               <Typography variant="caption" color="text.secondary">
-                {loading ? 'Loading...' : 'Storage info'}
+                {loading ? 'Loading storage info...' : `${actualStats.total_documents || 0} documents stored`}
               </Typography>
             </CardContent>
           </Card>
         </Box>
 
         <Box>
-          <Card sx={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
-            <CardContent sx={{ p: 3, textAlign: 'center' }}>
-              <CloudUpload sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+          <Card sx={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)', height: '100%' }}>
+            <CardContent sx={{ 
+              p: 3, 
+              height: '100%', 
+              display: 'flex', 
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              textAlign: 'center'
+            }}>
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                width: '100%',
+                mb: 2
+              }}>
+                <CloudUpload sx={{ fontSize: 64, color: 'primary.main' }} />
+              </Box>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
                 Upload New Document
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 Drag and drop files or click to browse
               </Typography>
               <Button
                 variant="contained"
                 startIcon={<Add />}
                 onClick={() => setUploadOpen(true)}
-                sx={{ borderRadius: 2 }}
+                sx={{ 
+                  borderRadius: 2,
+                  py: 1.5,
+                  px: 3,
+                  fontSize: '1rem',
+                  fontWeight: 600
+                }}
               >
                 Choose Files
               </Button>
@@ -581,13 +705,25 @@ export default function DocumentManager() {
 
                   <ListItemSecondaryAction>
                     <Stack direction="row" spacing={1}>
-                      <IconButton size="small" title="View">
+                      <IconButton 
+                        size="small" 
+                        title="View" 
+                        onClick={() => handleViewDocument(document)}
+                      >
                         <Visibility />
                       </IconButton>
-                      <IconButton size="small" title="Download">
+                      <IconButton 
+                        size="small" 
+                        title="Download"
+                        onClick={() => handleDownloadDocument(document)}
+                      >
                         <Download />
                       </IconButton>
-                      <IconButton size="small" title="Share">
+                      <IconButton 
+                        size="small" 
+                        title="Share"
+                        onClick={() => handleShareDocument(document)}
+                      >
                         <Share />
                       </IconButton>
                       <IconButton size="small" title="More options">
@@ -671,6 +807,185 @@ export default function DocumentManager() {
           >
             Close
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Document Viewer Dialog */}
+      <Dialog 
+        open={viewerOpen} 
+        onClose={() => setViewerOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: { height: '80vh' }
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Description />
+            <Typography variant="h6">
+              {viewDocument?.title || 'Document Viewer'}
+            </Typography>
+          </Box>
+          <Box>
+            {viewDocument && (
+              <>
+                <IconButton 
+                  onClick={() => handleDownloadDocument({ id: viewDocument.document_id, title: viewDocument.title })}
+                  title="Download"
+                >
+                  <Download />
+                </IconButton>
+                <IconButton 
+                  onClick={() => setViewerOpen(false)}
+                  title="Close"
+                >
+                  <MoreVert />
+                </IconButton>
+              </>
+            )}
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 0 }}>
+          {viewDocument ? (
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              {/* Document Info Header */}
+              <Box sx={{ p: 2, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="body2" color="text.secondary">
+                  📄 {viewDocument.file_type} • 📊 {formatFileSize(viewDocument.file_size)} • 📅 {new Date(viewDocument.created_at).toLocaleDateString()}
+                </Typography>
+              </Box>
+              
+              {/* Document Content */}
+              <Box sx={{ flex: 1, overflow: 'hidden', bgcolor: 'white' }}>
+                {viewDocument.has_file ? (
+                  <Box sx={{ height: '100%', width: '100%' }}>
+                    {viewDocument.file_type === 'application/pdf' ? (
+                      /* PDF Viewer */
+                      <iframe
+                        src={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/documents/${viewDocument.document_id}/serve?user_email=${encodeURIComponent(localStorage.getItem('user_email') || '')}`}
+                        style={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          border: 'none' 
+                        }}
+                        title={viewDocument.title}
+                      />
+                    ) : viewDocument.file_type?.startsWith('image/') ? (
+                      /* Image Viewer */
+                      <Box sx={{ 
+                        height: '100%', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        bgcolor: '#f5f5f5'
+                      }}>
+                        <img
+                          src={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/documents/${viewDocument.document_id}/serve?user_email=${encodeURIComponent(localStorage.getItem('user_email') || '')}`}
+                          alt={viewDocument.title}
+                          style={{ 
+                            maxWidth: '100%', 
+                            maxHeight: '100%', 
+                            objectFit: 'contain' 
+                          }}
+                        />
+                      </Box>
+                    ) : viewDocument.file_type?.startsWith('text/') || 
+                          viewDocument.file_type === 'application/json' ||
+                          viewDocument.file_type === 'text/csv' ? (
+                      /* Text file viewer */
+                      <Box sx={{ height: '100%', overflow: 'auto', p: 2 }}>
+                        <Box sx={{ 
+                          fontFamily: 'monospace', 
+                          fontSize: '0.9rem',
+                          lineHeight: 1.6,
+                          whiteSpace: 'pre-wrap',
+                          bgcolor: '#f8f9fa',
+                          p: 2,
+                          borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: 'divider'
+                        }}>
+                          {viewDocument.content || 'Loading content...'}
+                        </Box>
+                      </Box>
+                    ) : (
+                      /* Unsupported file type - show download option */
+                      <Box sx={{ 
+                        height: '100%',
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        color: 'text.secondary',
+                        p: 4
+                      }}>
+                        <Description sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
+                        <Typography variant="h6" gutterBottom>
+                          Preview not available
+                        </Typography>
+                        <Typography variant="body2" textAlign="center" sx={{ mb: 3 }}>
+                          This file type ({viewDocument.file_type}) cannot be previewed in the browser.
+                          <br />
+                          Please download the file to view its contents.
+                        </Typography>
+                        <Button 
+                          variant="contained" 
+                          startIcon={<Download />}
+                          onClick={() => handleDownloadDocument({ id: viewDocument.document_id, title: viewDocument.title })}
+                        >
+                          Download File
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+                ) : (
+                  <Box sx={{ 
+                    height: '100%',
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    color: 'text.secondary',
+                    p: 4
+                  }}>
+                    <Description sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
+                    <Typography variant="h6" gutterBottom>
+                      File not available
+                    </Typography>
+                    <Typography variant="body2" textAlign="center">
+                      The original file is not available for viewing.
+                      <br />
+                      Only extracted text content is stored.
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <LinearProgress />
+              <Typography variant="body2" sx={{ mt: 2 }}>
+                Loading document...
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 2, bgcolor: 'grey.50', borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button onClick={() => setViewerOpen(false)} variant="outlined">
+            Close
+          </Button>
+          {viewDocument && (
+            <Button 
+              onClick={() => handleDownloadDocument({ id: viewDocument.document_id, title: viewDocument.title })}
+              variant="contained"
+              startIcon={<Download />}
+            >
+              Download
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

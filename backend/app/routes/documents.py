@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import logging
@@ -6,6 +7,9 @@ import uuid
 from datetime import datetime
 import requests
 import io
+import os
+import shutil
+from pathlib import Path
 
 from ..database import db_manager
 from ..ai_service import ai_service
@@ -14,6 +18,27 @@ from ..document_processor import document_processor
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# File storage configuration
+UPLOADS_DIR = Path("uploads")
+UPLOADS_DIR.mkdir(exist_ok=True)
+
+def save_uploaded_file(file_content: bytes, filename: str, document_id: str) -> str:
+    """Save uploaded file to local storage"""
+    try:
+        # Create safe filename with document ID
+        file_extension = Path(filename).suffix
+        safe_filename = f"{document_id}{file_extension}"
+        file_path = UPLOADS_DIR / safe_filename
+        
+        # Save file
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+        
+        return str(file_path)
+    except Exception as e:
+        logger.error(f"Error saving file: {e}")
+        raise e
 
 # Pydantic models
 class DocumentResponse(BaseModel):
@@ -76,6 +101,17 @@ async def upload_document(
         
         logger.info(f"Uploading document: {file.filename}, type: {file.content_type}, size: {len(file_content)} bytes")
         
+        # Generate document ID
+        doc_id = str(uuid.uuid4())
+        
+        # Save file to storage
+        try:
+            file_path = save_uploaded_file(file_content, file.filename, doc_id)
+            logger.info(f"File saved to: {file_path}")
+        except Exception as e:
+            logger.error(f"Failed to save file: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save file")
+        
         # Extract text content using document processor
         extracted_text, extraction_metadata = await document_processor.extract_text(
             file_content, 
@@ -83,13 +119,13 @@ async def upload_document(
             file.filename
         )
         
-        # Create document record with processing status
-        doc_id = str(uuid.uuid4())
+        # Create document record with processing status and file path
         document_data = {
             "id": doc_id,
             "title": file.filename,
             "file_type": file.content_type,
             "file_size": len(file_content),
+            "file_path": file_path,  # Add file path
             "uploaded_by": current_user["id"],
             "content": extracted_text if extracted_text else None,
             "processing_status": "pending" if extracted_text else "failed",
@@ -277,6 +313,134 @@ async def get_document(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve document"
+        )
+
+@router.get("/{document_id}/download")
+async def download_document(
+    document_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Download a specific document file"""
+    try:
+        # Get document from database
+        document = await db_manager.get_document_by_id(document_id)
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        if document.get("uploaded_by") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Check if file exists
+        file_path = document.get("file_path")
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found in storage")
+        
+        # Return file for download
+        return FileResponse(
+            path=file_path,
+            filename=document.get("title", "document"),
+            media_type=document.get("file_type", "application/octet-stream")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading document: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to download document"
+        )
+
+@router.get("/{document_id}/view")
+async def view_document(
+    document_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """View document content inline"""
+    try:
+        # Get document from database
+        document = await db_manager.get_document_by_id(document_id)
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        if document.get("uploaded_by") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Return extracted text content for viewing
+        return {
+            "document_id": document_id,
+            "title": document.get("title"),
+            "file_type": document.get("file_type"),
+            "content": document.get("content", "No text content available"),
+            "file_size": document.get("file_size"),
+            "created_at": document.get("created_at"),
+            "has_file": bool(document.get("file_path") and os.path.exists(document.get("file_path", "")))
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error viewing document: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to view document"
+        )
+
+@router.get("/{document_id}/serve")
+async def serve_document(
+    document_id: str,
+    request: Request
+):
+    """Serve document file for inline viewing (e.g., PDF in browser)"""
+    try:
+        # Get user from headers (same as get_current_user but without dependency injection for iframe support)
+        user_email = request.headers.get("x-user-email")
+        if not user_email:
+            # For iframe requests, try to get from query params
+            user_email = request.query_params.get("user_email")
+        
+        if not user_email:
+            raise HTTPException(status_code=401, detail="No user email provided")
+        
+        # Get user from database
+        user = await db_manager.get_user_by_email(user_email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get document from database
+        document = await db_manager.get_document_by_id(document_id)
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        if document.get("uploaded_by") != user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Check if file exists
+        file_path = document.get("file_path")
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found in storage")
+        
+        # Return file for inline viewing
+        return FileResponse(
+            path=file_path,
+            media_type=document.get("file_type", "application/octet-stream"),
+            headers={
+                "Content-Disposition": "inline",  # This makes it display in browser instead of download
+                "Access-Control-Allow-Origin": "*",  # Allow iframe embedding
+                "Access-Control-Allow-Headers": "*"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving document: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to serve document"
         )
 
 @router.delete("/{document_id}")

@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 
 from ..database import db_manager
+from ..ai_service import ai_service
 
 logger = logging.getLogger(__name__)
 
@@ -393,4 +394,47 @@ async def get_assignment_stats(current_user: Dict[str, Any] = Depends(get_curren
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve assignment statistics"
+        )
+
+@router.post("/{assignment_id}/insights")
+async def get_assignment_insights(
+    assignment_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Generate AI insights for a specific assignment"""
+    try:
+        # Get the assignment data
+        assignments = await db_manager.get_user_assignments(current_user["id"])
+        assignment = next((a for a in assignments if a["id"] == assignment_id), None)
+        
+        if not assignment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Assignment not found"
+            )
+        
+        # Generate AI insights
+        user_context = {"user_id": current_user["id"]}
+        insights_result = await ai_service.generate_assignment_insights(assignment, user_context)
+        
+        if not insights_result.get("success"):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate insights: {insights_result.get('error', 'Unknown error')}"
+            )
+        
+        return {
+            "assignment_id": assignment_id,
+            "assignment_title": assignment.get("title"),
+            "insights": insights_result["insights"],
+            "generated_at": insights_result["generated_at"]
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating assignment insights: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate assignment insights"
         )
