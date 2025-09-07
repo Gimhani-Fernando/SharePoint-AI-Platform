@@ -196,7 +196,9 @@ npm install
 
 # Set up environment variables
 cp .env.example .env.local
-# Edit .env.local with your Microsoft Azure configuration
+# Edit .env.local with:
+# REACT_APP_API_URL (API Configuration)
+# REACT_APP_AZURE_CLIENT_ID and REACT_APP_AZURE_TENANT_ID (Azure/OneDrive Configuration)
 
 # Start the development server
 npm start
