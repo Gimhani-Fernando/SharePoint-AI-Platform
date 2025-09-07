@@ -10,7 +10,8 @@ import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import AssignmentRoundedIcon from '@mui/icons-material/AssignmentRounded';
 import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
-import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
+import CloudSyncRoundedIcon from '@mui/icons-material/CloudSyncRounded';
+import CloudDoneRoundedIcon from '@mui/icons-material/CloudDoneRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import HelpRoundedIcon from '@mui/icons-material/HelpRounded';
@@ -20,10 +21,11 @@ const mainListItems = [
   { text: 'Assignments', icon: <AssignmentRoundedIcon />, path: '/assignments' },
   { text: 'AI Assistant', icon: <ChatRoundedIcon />, path: '/chat' },
   { text: 'Documents', icon: <CloudUploadRoundedIcon />, path: '/documents' },
-  { text: 'SharePoint Sync', icon: <ShareRoundedIcon />, path: '/sharepoint' },
+  { text: 'OneDrive Sync', icon: <CloudSyncRoundedIcon />, path: '/onedrive' },
 ];
 
 const secondaryListItems = [
+  { text: 'SharePoint Status', icon: <CloudDoneRoundedIcon />, path: '/sharepoint-status' },
   { text: 'Settings', icon: <SettingsRoundedIcon />, path: '/settings' },
   { text: 'About', icon: <InfoRoundedIcon />, path: '/about' },
   { text: 'Help', icon: <HelpRoundedIcon />, path: '/help' },

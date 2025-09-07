@@ -5,9 +5,14 @@ import DashboardHome from './components/DashboardHome';
 import AssignmentManager from './components/AssignmentManager';
 import AIChat from './components/AIChat';
 import DocumentManager from './components/DocumentManager';
-import SharePointSync from './components/SharePointSync';
+import OneDriveIntegration from './components/OneDriveIntegration';
+import OneDriveCallback from './components/OneDriveCallback';
+import SharePointStatus from './components/SharePointStatus';
 import Settings from './components/Settings';
-import { Typography, Box } from '@mui/material';
+import LoginForm from './components/LoginForm';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { OneDriveProvider } from './contexts/OneDriveContext';
+import { Typography, Box, CircularProgress } from '@mui/material';
 
 const About = () => (
   <Box sx={{ p: 3, textAlign: 'center' }}>
@@ -31,22 +36,60 @@ const Help = () => (
   </Box>
 );
 
+const AppContent: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        }}
+      >
+        <CircularProgress size={60} sx={{ color: 'white' }} />
+      </Box>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginForm />;
+  }
+
+  return (
+    <Dashboard>
+      <Routes>
+        <Route path="/" element={<DashboardHome />} />
+        <Route path="/assignments" element={<AssignmentManager />} />
+        <Route path="/chat" element={<AIChat />} />
+        <Route path="/documents" element={<DocumentManager />} />
+        <Route path="/onedrive" element={<OneDriveIntegration />} />
+        <Route path="/sharepoint-status" element={<SharePointStatus />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/help" element={<Help />} />
+      </Routes>
+    </Dashboard>
+  );
+};
+
 function App() {
   return (
-    <Router>
-      <Dashboard>
-        <Routes>
-          <Route path="/" element={<DashboardHome />} />
-          <Route path="/assignments" element={<AssignmentManager />} />
-          <Route path="/chat" element={<AIChat />} />
-          <Route path="/documents" element={<DocumentManager />} />
-          <Route path="/sharepoint" element={<SharePointSync />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/help" element={<Help />} />
-        </Routes>
-      </Dashboard>
-    </Router>
+    <AuthProvider>
+      <OneDriveProvider>
+        <Router>
+          <Routes>
+            {/* OneDrive callback route - outside of main dashboard */}
+            <Route path="/onedrive-callback" element={<OneDriveCallback />} />
+            {/* All other routes */}
+            <Route path="/*" element={<AppContent />} />
+          </Routes>
+        </Router>
+      </OneDriveProvider>
+    </AuthProvider>
   );
 }
 
