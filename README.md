@@ -167,7 +167,7 @@ We've engineered a comprehensive AI-powered platform that addresses these challe
 cd backend
 
 # Create virtual environment
-python3 -m venv venv
+python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
@@ -181,7 +181,7 @@ cp .env.example .env
 # - MICROSOFT_CLIENT_ID and CLIENT_SECRET
 
 # Start the development server
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 🎨 Frontend Setup
@@ -377,7 +377,7 @@ DELETE /api/projects/{id}      # Delete project
 ```bash
 # Start backend
 cd backend
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Start frontend (new terminal)
 cd frontend
