@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { apiService } from '../services/api';
 import {
   Box,
   Typography,
@@ -49,107 +50,154 @@ import {
   Add,
 } from '@mui/icons-material';
 
-// Mock data
-const MOCK_DOCUMENTS = [
-  {
-    id: '1',
-    name: 'SharePoint API Documentation.pdf',
-    type: 'pdf',
-    size: '2.4 MB',
-    uploadedBy: 'John Doe',
-    uploadedAt: '2024-12-20T10:30:00Z',
-    project: 'SharePoint Integration',
-    status: 'processed',
-    tags: ['documentation', 'api', 'technical'],
-    description: 'Comprehensive API documentation for SharePoint integration'
-  },
-  {
-    id: '2',
-    name: 'Security Guidelines.docx',
-    type: 'document',
-    size: '1.8 MB',
-    uploadedBy: 'Sarah Wilson',
-    uploadedAt: '2024-12-19T14:15:00Z',
-    project: 'Security Enhancement',
-    status: 'processing',
-    tags: ['security', 'guidelines', 'policy'],
-    description: 'Security best practices and implementation guidelines'
-  },
-  {
-    id: '3',
-    name: 'Project Timeline.xlsx',
-    type: 'spreadsheet',
-    size: '856 KB',
-    uploadedBy: 'Mike Johnson',
-    uploadedAt: '2024-12-18T09:45:00Z',
-    project: 'UI/UX Overhaul',
-    status: 'processed',
-    tags: ['timeline', 'project-management', 'planning'],
-    description: 'Detailed project timeline with milestones and deliverables'
-  },
-  {
-    id: '4',
-    name: 'User Interface Mockups.zip',
-    type: 'archive',
-    size: '15.2 MB',
-    uploadedBy: 'Lisa Chen',
-    uploadedAt: '2024-12-17T16:20:00Z',
-    project: 'UI/UX Overhaul',
-    status: 'processed',
-    tags: ['design', 'mockups', 'ui-ux'],
-    description: 'High-fidelity mockups for the new user interface design'
-  },
-  {
-    id: '5',
-    name: 'Database Schema.sql',
-    type: 'code',
-    size: '124 KB',
-    uploadedBy: 'David Brown',
-    uploadedAt: '2024-12-16T11:10:00Z',
-    project: 'Performance Boost',
-    status: 'processed',
-    tags: ['database', 'schema', 'sql'],
-    description: 'Updated database schema with performance optimizations'
-  },
-  {
-    id: '6',
-    name: 'Training Video.mp4',
-    type: 'video',
-    size: '45.7 MB',
-    uploadedBy: 'Emma Davis',
-    uploadedAt: '2024-12-15T13:30:00Z',
-    project: 'Training Program',
-    status: 'processed',
-    tags: ['training', 'video', 'tutorial'],
-    description: 'Comprehensive training video for new team members'
-  }
-];
+interface Document {
+  id: string;
+  name?: string;
+  title?: string;
+  file_type?: string;
+  file_size: number;
+  uploaded_by?: string;
+  uploaded_at: string;
+  created_at?: string;
+  project_id?: string;
+  status: string;
+  tags?: string[];
+  description?: string;
+  metadata?: any;
+}
 
-const MOCK_STATS = {
-  total_documents: 156,
-  processed_documents: 142,
-  processing_documents: 8,
-  failed_documents: 6,
-  storage_used: '2.3 GB',
-  storage_limit: '10 GB'
-};
+interface DocumentStats {
+  total_documents: number;
+  processed_documents: number;
+  processing_documents: number;
+  failed_documents: number;
+  storage_used: string;
+  storage_limit: string;
+}
 
 export default function DocumentManager() {
-  const [documents] = useState(MOCK_DOCUMENTS);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documentStats, setDocumentStats] = useState<DocumentStats | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [viewFilter, setViewFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const getFileIcon = (type: string) => {
-    switch (type) {
-      case 'pdf': return <PictureAsPdf color="error" />;
-      case 'document': return <Description color="primary" />;
-      case 'spreadsheet': return <TableChart color="success" />;
-      case 'image': return <Image color="warning" />;
-      case 'video': return <VideoFile color="secondary" />;
-      case 'code': return <TextSnippet color="info" />;
-      default: return <Description />;
+  useEffect(() => {
+    loadDocuments();
+    loadDocumentStats();
+  }, []);
+
+  const loadDocuments = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getDocuments();
+      setDocuments(response.documents || []);
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const loadDocumentStats = async () => {
+    try {
+      // For now using mock stats - you can implement a real API endpoint later
+      setDocumentStats({
+        total_documents: 0,
+        processed_documents: 0,
+        processing_documents: 0,
+        failed_documents: 0,
+        storage_used: '0 GB',
+        storage_limit: '10 GB'
+      });
+    } catch (error) {
+      console.error('Error loading document stats:', error);
+    }
+  };
+
+  const handleFileUpload = async (files: FileList) => {
+    if (!files || files.length === 0) return;
+
+    // Check if user is authenticated using development mode
+    const userEmail = localStorage.getItem('user_email');
+    if (!userEmail) {
+      alert('Please log in to upload documents');
+      return;
+    }
+
+    setUploading(true);
+    const results = [];
+    
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          const result = await apiService.uploadDocument(file);
+          results.push({ 
+            file: file.name, 
+            success: true, 
+            message: result.message || 'Upload successful',
+            processed: result.processed || false,
+            chunks: result.chunks_created || 0
+          });
+          console.log(`✅ Uploaded ${file.name}:`, result);
+        } catch (fileError) {
+          results.push({ 
+            file: file.name, 
+            success: false, 
+            message: fileError instanceof Error ? fileError.message : 'Upload failed' 
+          });
+          console.error(`❌ Failed to upload ${file.name}:`, fileError);
+        }
+      }
+      
+      // Show detailed results
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
+      
+      let alertMessage = `Upload Summary:\n`;
+      if (successful.length > 0) {
+        alertMessage += `✅ ${successful.length} files uploaded successfully\n`;
+        successful.forEach(r => {
+          if (r.processed) {
+            alertMessage += `   • ${r.file} - AI processed (${r.chunks} chunks created)\n`;
+          } else {
+            alertMessage += `   • ${r.file} - uploaded\n`;
+          }
+        });
+      }
+      if (failed.length > 0) {
+        alertMessage += `❌ ${failed.length} files failed\n`;
+        failed.forEach(r => alertMessage += `   • ${r.file} - ${r.message}\n`);
+      }
+      
+      alert(alertMessage);
+      
+      // Reload documents after upload
+      await loadDocuments();
+      await loadDocumentStats();
+      setUploadOpen(false);
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      alert('Upload process encountered an error. Check console for details.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const getFileIcon = (mimeType?: string) => {
+    if (!mimeType) return <Description />;
+    
+    if (mimeType.includes('pdf')) return <PictureAsPdf color="error" />;
+    if (mimeType.includes('word') || mimeType.includes('document')) return <Description color="primary" />;
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return <TableChart color="success" />;
+    if (mimeType.includes('image')) return <Image color="warning" />;
+    if (mimeType.includes('video')) return <VideoFile color="secondary" />;
+    if (mimeType.includes('text') || mimeType.includes('code')) return <TextSnippet color="info" />;
+    
+    return <Description />;
   };
 
   const getStatusColor = (status: string) => {
@@ -162,14 +210,46 @@ export default function DocumentManager() {
   };
 
   const getStoragePercentage = () => {
-    return (2.3 / 10) * 100; // 2.3GB used out of 10GB
+    if (!documentStats) return 0;
+    const used = parseFloat(documentStats.storage_used.split(' ')[0]);
+    const limit = parseFloat(documentStats.storage_limit.split(' ')[0]);
+    return (used / limit) * 100;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const filteredDocuments = documents.filter(doc => {
     if (viewFilter !== 'all' && doc.status !== viewFilter) return false;
-    if (searchQuery && !doc.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (searchQuery) {
+      const docName = (doc.name || doc.title || '').toLowerCase();
+      if (!docName.includes(searchQuery.toLowerCase())) return false;
+    }
     return true;
   });
+
+  // Update stats based on actual documents
+  const actualStats = React.useMemo(() => {
+    const total = documents.length;
+    const processed = documents.filter(d => d.status === 'processed').length;
+    const processing = documents.filter(d => d.status === 'processing').length;
+    const failed = documents.filter(d => d.status === 'failed').length;
+    const totalSize = documents.reduce((acc, doc) => acc + (doc.file_size || 0), 0);
+    
+    return {
+      total_documents: total,
+      processed_documents: processed,
+      processing_documents: processing,
+      failed_documents: failed,
+      storage_used: formatFileSize(totalSize),
+      storage_limit: '10 GB'
+    };
+  }, [documents]);
 
   return (
     <Box sx={{ width: '100%' }}>
@@ -202,7 +282,7 @@ export default function DocumentManager() {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                    {MOCK_STATS.total_documents}
+                    {actualStats.total_documents}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Total Documents
@@ -228,7 +308,7 @@ export default function DocumentManager() {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                    {MOCK_STATS.processed_documents}
+                    {actualStats.processed_documents}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Processed
@@ -254,7 +334,7 @@ export default function DocumentManager() {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                    {MOCK_STATS.processing_documents}
+                    {actualStats.processing_documents}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Processing
@@ -280,7 +360,7 @@ export default function DocumentManager() {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                    {MOCK_STATS.storage_used}
+                    {actualStats.storage_used}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
                     Storage Used
@@ -310,8 +390,8 @@ export default function DocumentManager() {
               </Typography>
               <Box sx={{ mb: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Used: {MOCK_STATS.storage_used}</Typography>
-                  <Typography variant="body2">Limit: {MOCK_STATS.storage_limit}</Typography>
+                  <Typography variant="body2">Used: {actualStats.storage_used}</Typography>
+                  <Typography variant="body2">Limit: {actualStats.storage_limit}</Typography>
                 </Box>
                 <LinearProgress
                   variant="determinate"
@@ -320,7 +400,7 @@ export default function DocumentManager() {
                 />
               </Box>
               <Typography variant="caption" color="text.secondary">
-                {(10 - 2.3).toFixed(1)} GB remaining
+                {loading ? 'Loading...' : 'Storage info'}
               </Typography>
             </CardContent>
           </Card>
@@ -409,7 +489,7 @@ export default function DocumentManager() {
                 <ListItem sx={{ px: 3, py: 2 }}>
                   <ListItemIcon>
                     <Box sx={{ position: 'relative' }}>
-                      {getFileIcon(document.type)}
+                      {getFileIcon(document.file_type)}
                       {document.status === 'processing' && (
                         <Box sx={{
                           position: 'absolute',
@@ -429,7 +509,7 @@ export default function DocumentManager() {
                     primary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                         <Typography variant="body1" sx={{ fontWeight: 600, flex: 1 }}>
-                          {document.name}
+                          {document.name || document.title || 'Unknown Document'}
                         </Typography>
                         <Chip
                           label={document.status}
@@ -442,33 +522,59 @@ export default function DocumentManager() {
                     secondary={
                       <Box>
                         <Typography variant="body2" color="text.primary" sx={{ mb: 1 }}>
-                          {document.description}
+                          {document.description || `Document: ${document.name || document.title || 'Unknown file'}`}
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
                           <Typography variant="caption" color="text.secondary">
-                            Size: {document.size}
+                            📁 Size: {formatFileSize(document.file_size || 0)}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            Project: {document.project}
+                            📄 Type: {document.file_type || 'Unknown'}
                           </Typography>
+                          {document.project_id && (
+                            <Typography variant="caption" color="text.secondary">
+                              🏷️ Project: {document.project_id}
+                            </Typography>
+                          )}
                           <Typography variant="caption" color="text.secondary">
-                            By: {document.uploadedBy}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(document.uploadedAt).toLocaleDateString()}
+                            📅 {new Date(document.uploaded_at || document.created_at || Date.now()).toLocaleDateString()}
                           </Typography>
                         </Box>
-                        <Stack direction="row" spacing={0.5}>
-                          {document.tags.map((tag) => (
-                            <Chip
-                              key={tag}
-                              label={tag}
-                              size="small"
-                              variant="outlined"
-                              sx={{ fontSize: '0.7rem', height: '20px' }}
-                            />
-                          ))}
-                        </Stack>
+                        {/* AI Processing Status */}
+                        {document.status === 'processed' && (
+                          <Box sx={{ mt: 1, p: 1, bgcolor: 'success.light', borderRadius: 1, opacity: 0.8 }}>
+                            <Typography variant="caption" sx={{ color: 'success.dark', fontWeight: 500 }}>
+                              ✅ AI Processed - Ready for intelligent search
+                            </Typography>
+                          </Box>
+                        )}
+                        {document.status === 'processing' && (
+                          <Box sx={{ mt: 1, p: 1, bgcolor: 'warning.light', borderRadius: 1, opacity: 0.8 }}>
+                            <Typography variant="caption" sx={{ color: 'warning.dark', fontWeight: 500 }}>
+                              ⏳ AI Processing - Document is being analyzed...
+                            </Typography>
+                          </Box>
+                        )}
+                        {document.status === 'failed' && (
+                          <Box sx={{ mt: 1, p: 1, bgcolor: 'error.light', borderRadius: 1, opacity: 0.8 }}>
+                            <Typography variant="caption" sx={{ color: 'error.dark', fontWeight: 500 }}>
+                              ❌ Processing Failed - Document may need manual review
+                            </Typography>
+                          </Box>
+                        )}
+                        {document.tags && document.tags.length > 0 && (
+                          <Stack direction="row" spacing={0.5}>
+                            {document.tags.map((tag) => (
+                              <Chip
+                                key={tag}
+                                label={tag}
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontSize: '0.7rem', height: '20px' }}
+                              />
+                            ))}
+                          </Stack>
+                        )}
                       </Box>
                     }
                   />
@@ -536,9 +642,14 @@ export default function DocumentManager() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 or click to browse your computer
               </Typography>
-              <Button variant="contained" component="label">
-                Choose Files
-                <input type="file" hidden multiple />
+              <Button variant="contained" component="label" disabled={uploading}>
+                {uploading ? 'Uploading...' : 'Choose Files'}
+                <input 
+                  type="file" 
+                  hidden 
+                  multiple 
+                  onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                />
               </Button>
             </Paper>
           </Box>
@@ -550,11 +661,15 @@ export default function DocumentManager() {
           </Alert>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setUploadOpen(false)} variant="outlined">
-            Cancel
+          <Button onClick={() => setUploadOpen(false)} variant="outlined" disabled={uploading}>
+            {uploading ? 'Uploading...' : 'Cancel'}
           </Button>
-          <Button variant="contained" onClick={() => setUploadOpen(false)}>
-            Start Upload
+          <Button 
+            variant="contained" 
+            onClick={() => setUploadOpen(false)}
+            disabled={uploading}
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

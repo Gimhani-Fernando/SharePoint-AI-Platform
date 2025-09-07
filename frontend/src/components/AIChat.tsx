@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { apiService } from '../services/api';
 import {
   Box,
   TextField,
@@ -65,26 +66,6 @@ const SUGGESTED_PROMPTS = [
   "Find security-related documents"
 ];
 
-const MOCK_RESPONSES = {
-  "what assignments do i have": {
-    response: "I found **8 active assignments** in your workspace:\n\n**🔄 In Progress (3):**\n• SharePoint API Integration - 75% complete (Due Dec 30)\n• Database Schema Optimization - 45% complete (Due Dec 28)\n• Real-time Collaboration Features - 30% complete (Due Jan 10)\n\n**📋 To Do (3):**\n• Document Search with AI (Due Jan 15)\n• API Documentation & Testing (Due Jan 5)\n• Mobile Responsiveness (Due Jan 20)\n\n**✅ Recently Completed (2):**\n• User Authentication & Role Management\n• Frontend UI/UX Improvements\n\nWould you like me to prioritize these or dive deeper into any specific task?",
-    tools_used: ["assignment_tracker", "project_manager"],
-    confidence: "high" as const,
-    messageType: "analysis" as const
-  },
-  "search for api documentation": {
-    response: "Found **12 API documentation files** across your SharePoint sites:\n\n**📄 Primary Resources:**\n• **SharePoint API Documentation.pdf** (2.4 MB)\n  Complete integration guide with code examples\n\n• **REST API Best Practices.docx** (1.8 MB)\n  Implementation guidelines and security protocols\n\n• **Microsoft Graph API Reference.pdf** (3.2 MB)\n  Official Microsoft documentation with endpoints\n\n**📎 Supporting Files:**\n• API Security Guidelines.docx\n• Authentication Flow Diagrams.pdf\n• Error Handling Documentation.md\n• Postman Collection.json\n\nAll documents are AI-processed and searchable. Need help with a specific API endpoint or implementation?",
-    tools_used: ["document_search", "vector_similarity", "content_analysis"],
-    confidence: "high" as const,
-    messageType: "summary" as const
-  },
-  "show me recent documents": {
-    response: "Here are your **most recent document activities**:\n\n**📈 Today (3 files):**\n• Database Schema Optimization.pdf *2 hours ago*\n• UI Enhancement Mockups.figma *4 hours ago*\n• Sprint Planning Notes.docx *6 hours ago*\n\n**📊 Yesterday (4 files):**\n• SharePoint Integration Guide.docx\n• API Testing Results.xlsx\n• Security Audit Checklist.pdf\n• Team Velocity Report.pdf\n\n**📚 This Week (8 files):**\n• Project Timeline Updates\n• Architecture Decision Records\n• User Feedback Analysis\n• Performance Optimization Plans\n\n**💡 Quick Insight:** Your team uploaded 40% more documentation this week compared to last week, showing increased collaboration!\n\nWant me to summarize any of these documents?",
-    tools_used: ["document_manager", "recent_activity", "analytics"],
-    confidence: "high" as const,
-    messageType: "summary" as const
-  }
-};
 
 export default function AIChat() {
   const theme = useTheme();
@@ -128,38 +109,17 @@ export default function AIChat() {
     setLoading(true);
 
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Smart response matching
-      const messageKey = messageToSend.toLowerCase();
-      let mockResponse: {
-        response: string;
-        tools_used: string[];
-        confidence: 'high' | 'medium' | 'low';
-        messageType: 'question' | 'summary' | 'analysis';
-      } = {
-        response: "I understand your question! As this is a demo, I'm showing you how our AI will respond once fully connected.\n\n**I can help you with:**\n\n🎯 **Task Management**\n• Track assignment progress\n• Set priorities and deadlines\n• Monitor team productivity\n\n📚 **Document Intelligence**\n• Search through all your files\n• Generate summaries\n• Extract key insights\n\n📊 **Project Analytics**\n• Progress reports\n• Team performance\n• Bottleneck identification\n\nTry one of the suggested prompts or ask me anything about your work!",
-        tools_used: ["general_assistant", "demo_mode"],
-        confidence: "high" as const,
-        messageType: "question" as const
-      };
-      
-      // Find best matching response
-      for (const key in MOCK_RESPONSES) {
-        if (messageKey.includes(key)) {
-          mockResponse = MOCK_RESPONSES[key as keyof typeof MOCK_RESPONSES];
-          break;
-        }
-      }
+      const response = await apiService.sendChatMessage({
+        message: messageToSend
+      });
       
       const newMessage: ChatMessage = {
         id: tempMessage.id,
         message: messageToSend,
-        response: mockResponse.response,
-        tools_used: mockResponse.tools_used,
-        confidence: mockResponse.confidence,
-        messageType: mockResponse.messageType,
+        response: response.response,
+        tools_used: response.tools_used || [],
+        confidence: response.confidence || 'medium',
+        messageType: response.message_type || 'question',
         timestamp: new Date().toISOString(),
         isLoading: false
       };
@@ -168,7 +128,23 @@ export default function AIChat() {
         msg.id === tempMessage.id ? newMessage : msg
       ));
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error sending chat message:', error);
+      
+      // Show error message to user
+      const errorMessage: ChatMessage = {
+        id: tempMessage.id,
+        message: messageToSend,
+        response: "I'm sorry, I'm having trouble connecting to the server right now. Please try again in a moment.",
+        tools_used: ["error_handler"],
+        confidence: 'low',
+        messageType: 'question',
+        timestamp: new Date().toISOString(),
+        isLoading: false
+      };
+
+      setMessages(prev => prev.map(msg => 
+        msg.id === tempMessage.id ? errorMessage : msg
+      ));
     } finally {
       setLoading(false);
     }

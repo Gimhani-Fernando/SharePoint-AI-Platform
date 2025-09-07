@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiService } from '../services/api';
 import {
   Box,
   Button,
@@ -24,6 +24,10 @@ import {
   Alert,
   Fab,
   Avatar,
+  Divider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import {
   Add,
@@ -33,6 +37,8 @@ import {
   Schedule,
   PriorityHigh,
   Assignment as AssignmentIcon,
+  ExpandMore,
+  FolderOpen,
 } from '@mui/icons-material';
 
 interface Assignment {
@@ -57,6 +63,14 @@ interface User {
   avatar?: string;
 }
 
+interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  manager_id: string | null;
+}
+
 interface FormData {
   title: string;
   description: string;
@@ -65,148 +79,21 @@ interface FormData {
   due_date: string;
   progress: number;
   assignee_id: string;
+  project_id: string;
 }
 
-const MOCK_USERS: User[] = [
-  {
-    id: 'user-1',
-    name: 'John Doe',
-    email: 'john.doe@company.com',
-    role: 'Project Manager',
-    avatar: 'JD'
-  },
-  {
-    id: 'user-2', 
-    name: 'Jane Smith',
-    email: 'jane.smith@company.com',
-    role: 'Developer',
-    avatar: 'JS'
-  },
-  {
-    id: 'user-3',
-    name: 'Mike Johnson',
-    email: 'mike.johnson@company.com', 
-    role: 'Designer',
-    avatar: 'MJ'
-  },
-  {
-    id: 'user-4',
-    name: 'Sarah Wilson',
-    email: 'sarah.wilson@company.com',
-    role: 'QA Engineer',
-    avatar: 'SW'
-  }
-];
 
-const MOCK_ASSIGNMENTS: Assignment[] = [
-  {
-    id: '1',
-    title: 'Complete SharePoint API Integration',
-    description: 'Integrate Microsoft Graph API with our SharePoint document management system to enable seamless file operations.',
-    status: 'in-progress',
-    priority: 'high',
-    due_date: '2024-12-30',
-    progress: 75,
-    assignee_id: 'user-1',
-    project_id: 'proj-1',
-    created_at: '2024-12-15T10:00:00Z',
-    projects: { name: 'SharePoint Integration' }
-  },
-  {
-    id: '2',
-    title: 'Implement Document Search with AI',
-    description: 'Build intelligent document search using vector embeddings and semantic search capabilities.',
-    status: 'todo',
-    priority: 'high',
-    due_date: '2025-01-15',
-    progress: 0,
-    assignee_id: 'user-1',
-    project_id: 'proj-2',
-    created_at: '2024-12-20T14:30:00Z',
-    projects: { name: 'AI Enhancement' }
-  },
-  {
-    id: '3',
-    title: 'User Authentication & Role Management',
-    description: 'Set up Azure AD integration for secure user authentication and implement role-based access control.',
-    status: 'completed',
-    priority: 'medium',
-    due_date: '2024-12-25',
-    progress: 100,
-    assignee_id: 'user-1',
-    project_id: 'proj-1',
-    created_at: '2024-12-10T09:15:00Z',
-    projects: { name: 'SharePoint Integration' }
-  },
-  {
-    id: '4',
-    title: 'Database Schema Optimization',
-    description: 'Optimize Supabase database schema for better performance and add proper indexing for vector search.',
-    status: 'in-progress',
-    priority: 'medium',
-    due_date: '2024-12-28',
-    progress: 45,
-    assignee_id: 'user-1',
-    project_id: 'proj-3',
-    created_at: '2024-12-18T11:20:00Z',
-    projects: { name: 'Backend Optimization' }
-  },
-  {
-    id: '5',
-    title: 'Frontend UI/UX Improvements',
-    description: 'Enhance the user interface with better responsive design and implement Material-UI best practices.',
-    status: 'completed',
-    priority: 'low',
-    due_date: '2024-12-22',
-    progress: 100,
-    assignee_id: 'user-1',
-    project_id: 'proj-4',
-    created_at: '2024-12-12T16:45:00Z',
-    projects: { name: 'UI Enhancement' }
-  },
-  {
-    id: '6',
-    title: 'API Documentation & Testing',
-    description: 'Create comprehensive API documentation and implement automated testing suite for all endpoints.',
-    status: 'todo',
-    priority: 'low',
-    due_date: '2025-01-05',
-    progress: 0,
-    assignee_id: 'user-1',
-    project_id: 'proj-3',
-    created_at: '2024-12-21T13:10:00Z',
-    projects: { name: 'Backend Optimization' }
-  },
-  {
-    id: '7',
-    title: 'Real-time Collaboration Features',
-    description: 'Implement real-time document collaboration using Supabase real-time subscriptions.',
-    status: 'in-progress',
-    priority: 'high',
-    due_date: '2025-01-10',
-    progress: 30,
-    assignee_id: 'user-1',
-    project_id: 'proj-2',
-    created_at: '2024-12-19T08:30:00Z',
-    projects: { name: 'AI Enhancement' }
-  },
-  {
-    id: '8',
-    title: 'Mobile Responsiveness',
-    description: 'Ensure the application works seamlessly on mobile devices and tablets with proper responsive design.',
-    status: 'todo',
-    priority: 'medium',
-    due_date: '2025-01-20',
-    progress: 0,
-    assignee_id: 'user-1',
-    project_id: 'proj-4',
-    created_at: '2024-12-22T12:00:00Z',
-    projects: { name: 'UI Enhancement' }
-  }
-];
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
 
 export default function AssignmentManager() {
-  const [assignments, setAssignments] = useState<Assignment[]>(MOCK_ASSIGNMENTS);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [open, setOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -218,62 +105,72 @@ export default function AssignmentManager() {
     priority: 'medium',
     due_date: '',
     progress: 0,
-    assignee_id: ''
+    assignee_id: '',
+    project_id: ''
   });
 
-  const getUserById = (userId: string | null): User | undefined => {
-    return MOCK_USERS.find(user => user.id === userId);
-  };
-
   useEffect(() => {
+    fetchCurrentUser();
+    fetchUsers();
+    fetchProjects();
     fetchAssignments();
-    
-    // Real-time subscription for assignments
-    const subscription = supabase
-      .channel('assignment-updates')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'assignments' 
-        }, 
-        (payload) => {
-          console.log('Assignment updated:', payload);
-          fetchAssignments();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await apiService.getCurrentUser();
+      setCurrentUser(response);
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      // Fetch real users from the database
+      const allUsers = await apiService.getUsers();
+      setUsers(allUsers);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      // Fallback to empty array if API fails
+      setUsers([]);
+    }
+  };
+
+  const fetchProjects = async () => {
+    try {
+      // Fetch projects from the database
+      const allProjects = await apiService.getProjects();
+      setProjects(allProjects);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      // Fallback to empty array if API fails
+      setProjects([]);
+    }
+  };
+
   const fetchAssignments = async () => {
+    const userEmail = localStorage.getItem('user_email');
+    if (!userEmail) {
+      setAssignments([]);
+      return;
+    }
+    
     try {
       setLoading(true);
-      // For demo purposes, use mock data
-      // In production, uncomment the Supabase call below
-      /*
-      const { data, error } = await supabase
-        .from('assignments')
-        .select(`
-          *,
-          projects (name)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setAssignments(data || []);
-      */
+      const data = await apiService.getAssignments();
+      console.log('Fetched assignments data:', data); // Debug log
+      console.log('Current user email:', userEmail); // Debug log
+      console.log('Current user:', currentUser); // Debug log
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setAssignments(MOCK_ASSIGNMENTS);
+      // Show ALL assignments for now to debug the issue
+      // Later we can add filtering back if needed
+      setAssignments(data || []);
+      
       setError(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching assignments:', err);
-      setError('Failed to load assignments');
+      setError('Failed to load assignments. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -285,45 +182,42 @@ export default function AssignmentManager() {
         setError('Title is required');
         return;
       }
+      
+      // Check if user is authenticated
+      const userEmail = localStorage.getItem('user_email');
+      if (!userEmail) {
+        setError('Please log in to create assignments');
+        return;
+      }
 
       if (editingAssignment) {
-        // Update existing assignment in mock data
-        const updatedAssignments = assignments.map(assignment => 
-          assignment.id === editingAssignment.id 
-            ? {
-                ...assignment,
-                title: formData.title,
-                description: formData.description,
-                status: formData.status,
-                priority: formData.priority,
-                due_date: formData.due_date || null,
-                progress: formData.progress
-              }
-            : assignment
-        );
-        setAssignments(updatedAssignments);
-      } else {
-        // Create new assignment in mock data
-        const newAssignment: Assignment = {
-          id: (assignments.length + 1).toString(),
+        // Update existing assignment
+        await apiService.updateAssignment(editingAssignment.id, {
           title: formData.title,
           description: formData.description,
           status: formData.status,
           priority: formData.priority,
-          due_date: formData.due_date || null,
-          progress: formData.progress,
-          assignee_id: formData.assignee_id || 'user-1',
-          project_id: 'demo-project-id',
-          created_at: new Date().toISOString(),
-          projects: { name: 'Demo Project' }
-        };
-        setAssignments([newAssignment, ...assignments]);
+          due_date: formData.due_date || undefined,
+          progress: formData.progress
+        });
+      } else {
+        // Create new assignment
+        await apiService.createAssignment({
+          title: formData.title,
+          description: formData.description,
+          priority: formData.priority,
+          due_date: formData.due_date || undefined,
+          assignee_id: formData.assignee_id || currentUser?.email || localStorage.getItem('user_email') || undefined,
+          project_id: formData.project_id || undefined
+        });
       }
       
+      // Refresh assignments list
+      await fetchAssignments();
       handleCloseDialog();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving assignment:', err);
-      setError('Failed to save assignment');
+      setError(err.message || 'Failed to save assignment');
     }
   };
 
@@ -337,7 +231,8 @@ export default function AssignmentManager() {
       priority: 'medium',
       due_date: '',
       progress: 0,
-      assignee_id: ''
+      assignee_id: '',
+      project_id: ''
     });
     setError(null);
   };
@@ -351,27 +246,20 @@ export default function AssignmentManager() {
       priority: assignment.priority,
       due_date: assignment.due_date || '',
       progress: assignment.progress,
-      assignee_id: assignment.assignee_id || ''
+      assignee_id: assignment.assignee_id || '',
+      project_id: assignment.project_id || ''
     });
     setOpen(true);
   };
 
   const updateAssignmentStatus = async (id: string, newStatus: Assignment['status'], newProgress?: number) => {
     try {
-      // Update assignment in mock data
-      const updatedAssignments = assignments.map(assignment => 
-        assignment.id === id 
-          ? {
-              ...assignment,
-              status: newStatus,
-              progress: newProgress !== undefined ? newProgress : assignment.progress
-            }
-          : assignment
-      );
-      setAssignments(updatedAssignments);
-    } catch (err) {
+      await apiService.updateAssignmentStatus(id, newStatus, newProgress);
+      // Refresh assignments list
+      await fetchAssignments();
+    } catch (err: any) {
       console.error('Error updating assignment:', err);
-      setError('Failed to update assignment');
+      setError(err.message || 'Failed to update assignment');
     }
   };
 
@@ -400,6 +288,157 @@ export default function AssignmentManager() {
       default: return <Schedule />;
     }
   };
+
+  // Group assignments by project
+  const groupAssignmentsByProject = () => {
+    const grouped: { [key: string]: { project: Project | null, assignments: Assignment[] } } = {};
+    
+    assignments.forEach(assignment => {
+      const projectId = assignment.project_id || 'no-project';
+      const project = assignment.project_id ? projects.find(p => p.id === assignment.project_id) || null : null;
+      
+      if (!grouped[projectId]) {
+        grouped[projectId] = {
+          project,
+          assignments: []
+        };
+      }
+      
+      grouped[projectId].assignments.push(assignment);
+    });
+    
+    return grouped;
+  };
+
+  // Render individual assignment card
+  const renderAssignmentCard = (assignment: Assignment) => (
+    <Card 
+      key={assignment.id} 
+      sx={{ 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        transition: 'all 0.3s ease',
+        '&:hover': {
+          transform: 'translateY(-4px)',
+          boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+        }
+      }}
+    >
+      <CardContent sx={{ flexGrow: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Chip 
+            label={assignment.priority} 
+            color={getPriorityColor(assignment.priority) as any}
+            size="small"
+            sx={{ textTransform: 'capitalize' }}
+          />
+          <Chip 
+            icon={getStatusIcon(assignment.status)}
+            label={assignment.status.replace('-', ' ')}
+            color={getStatusColor(assignment.status) as any}
+            size="small"
+            sx={{ textTransform: 'capitalize' }}
+          />
+        </Box>
+
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+          {assignment.title}
+        </Typography>
+        
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 40 }}>
+          {assignment.description || 'No description provided'}
+        </Typography>
+
+        {assignment.assignee_id && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Avatar sx={{ width: 20, height: 20, bgcolor: 'secondary.main', fontSize: '0.75rem' }}>
+              {(() => {
+                const assignedUser = users.find(u => u.email === assignment.assignee_id || u.id === assignment.assignee_id);
+                return assignedUser ? assignedUser.name.charAt(0).toUpperCase() : assignment.assignee_id?.charAt(0).toUpperCase() || 'U';
+              })()}
+            </Avatar>
+            <Typography variant="caption" sx={{ fontWeight: 500 }}>
+              {(() => {
+                const assignedUser = users.find(u => u.email === assignment.assignee_id || u.id === assignment.assignee_id);
+                const userEmail = localStorage.getItem('user_email');
+                if (assignment.assignee_id === userEmail || assignment.assignee_id === currentUser?.email) {
+                  return 'Me';
+                }
+                return assignedUser ? assignedUser.name : assignment.assignee_id;
+              })()}
+            </Typography>
+          </Box>
+        )}
+
+        {assignment.due_date && (
+          <Typography variant="caption" display="block" sx={{ mb: 2, color: 'warning.main' }}>
+            Due: {new Date(assignment.due_date).toLocaleDateString()}
+          </Typography>
+        )}
+
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              Progress
+            </Typography>
+            <Typography variant="body2" color="primary">
+              {assignment.progress}%
+            </Typography>
+          </Box>
+          <LinearProgress 
+            variant="determinate" 
+            value={assignment.progress} 
+            sx={{ 
+              height: 6, 
+              borderRadius: 3,
+              '& .MuiLinearProgress-bar': {
+                borderRadius: 3,
+              }
+            }}
+          />
+        </Box>
+      </CardContent>
+
+      <CardActions sx={{ p: 2, pt: 0 }}>
+        <Stack direction="row" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
+          <Stack direction="row" spacing={1}>
+            {assignment.status === 'todo' && (
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                startIcon={<PlayArrow />}
+                onClick={() => updateAssignmentStatus(assignment.id, 'in-progress', 10)}
+              >
+                Start
+              </Button>
+            )}
+            
+            {assignment.status === 'in-progress' && (
+              <Button
+                size="small"
+                variant="contained"
+                color="success"
+                startIcon={<CheckCircle />}
+                onClick={() => updateAssignmentStatus(assignment.id, 'completed', 100)}
+              >
+                Complete
+              </Button>
+            )}
+          </Stack>
+
+          <IconButton
+            size="small"
+            onClick={() => handleEditAssignment(assignment)}
+            sx={{ color: 'primary.main' }}
+          >
+            <Edit />
+          </IconButton>
+        </Stack>
+      </CardActions>
+    </Card>
+  );
 
   if (loading) {
     return (
@@ -521,146 +560,73 @@ export default function AssignmentManager() {
         </Card>
       </Box>
 
-      {/* Assignments Grid */}
-      <Box sx={{ 
-        display: 'grid', 
-        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, 
-        gap: 3 
-      }}>
-        {assignments.map((assignment) => (
-            <Card 
+      {/* Assignments Grouped by Projects */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {Object.entries(groupAssignmentsByProject()).map(([projectId, { project, assignments: projectAssignments }]) => (
+          <Box key={projectId}>
+            <Accordion 
+              defaultExpanded 
               sx={{ 
-                height: '100%', 
-                display: 'flex', 
-                flexDirection: 'column',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
-                }
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                '&:before': { display: 'none' },
+                borderRadius: 2,
+                overflow: 'hidden'
               }}
             >
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Chip 
-                    label={assignment.priority} 
-                    color={getPriorityColor(assignment.priority) as any}
-                    size="small"
-                    sx={{ textTransform: 'capitalize' }}
-                  />
-                  <Chip 
-                    icon={getStatusIcon(assignment.status)}
-                    label={assignment.status.replace('-', ' ')}
-                    color={getStatusColor(assignment.status) as any}
-                    size="small"
-                    sx={{ textTransform: 'capitalize' }}
-                  />
+              <AccordionSummary 
+                expandIcon={<ExpandMore />}
+                sx={{ 
+                  bgcolor: project ? 'primary.main' : 'grey.100',
+                  color: project ? 'white' : 'text.primary',
+                  minHeight: 60,
+                  '&.Mui-expanded': { minHeight: 60 }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FolderOpen />
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {project?.name || 'No Project'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 'auto' }}>
+                    <Chip
+                      label={`${projectAssignments.length} assignment${projectAssignments.length !== 1 ? 's' : ''}`}
+                      size="small"
+                      sx={{
+                        bgcolor: project ? 'rgba(255,255,255,0.2)' : 'primary.main',
+                        color: project ? 'white' : 'white'
+                      }}
+                    />
+                    <Chip
+                      label={`${projectAssignments.filter(a => a.status === 'completed').length} completed`}
+                      size="small"
+                      sx={{
+                        bgcolor: project ? 'rgba(255,255,255,0.2)' : 'success.main',
+                        color: project ? 'white' : 'white'
+                      }}
+                    />
+                  </Box>
                 </Box>
-
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                  {assignment.title}
-                </Typography>
+              </AccordionSummary>
+              
+              <AccordionDetails sx={{ p: 3, bgcolor: 'background.paper' }}>
+                {project?.description && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    {project.description}
+                  </Typography>
+                )}
                 
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 40 }}>
-                  {assignment.description || 'No description provided'}
-                </Typography>
-
-                {assignment.projects && (
-                  <Typography variant="caption" display="block" sx={{ mb: 1, fontWeight: 500 }}>
-                    Project: {assignment.projects.name}
-                  </Typography>
-                )}
-
-                {assignment.assignee_id && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                      Assigned to:
-                    </Typography>
-                    {(() => {
-                      const assignedUser = getUserById(assignment.assignee_id);
-                      return assignedUser ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Avatar sx={{ width: 16, height: 16, fontSize: '0.65rem' }}>
-                            {assignedUser.avatar}
-                          </Avatar>
-                          <Typography variant="caption">
-                            {assignedUser.name}
-                          </Typography>
-                        </Box>
-                      ) : (
-                        <Typography variant="caption">Unknown User</Typography>
-                      );
-                    })()}
-                  </Box>
-                )}
-
-                {assignment.due_date && (
-                  <Typography variant="caption" display="block" sx={{ mb: 2, color: 'warning.main' }}>
-                    Due: {new Date(assignment.due_date).toLocaleDateString()}
-                  </Typography>
-                )}
-
-                <Box sx={{ mb: 2 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      Progress
-                    </Typography>
-                    <Typography variant="body2" color="primary">
-                      {assignment.progress}%
-                    </Typography>
-                  </Box>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={assignment.progress} 
-                    sx={{ 
-                      height: 6, 
-                      borderRadius: 3,
-                      '& .MuiLinearProgress-bar': {
-                        borderRadius: 3,
-                      }
-                    }}
-                  />
+                <Box sx={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, 
+                  gap: 3 
+                }}>
+                  {projectAssignments.map((assignment) => renderAssignmentCard(assignment))}
                 </Box>
-              </CardContent>
-
-              <CardActions sx={{ p: 2, pt: 0 }}>
-                <Stack direction="row" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
-                  <Stack direction="row" spacing={1}>
-                    {assignment.status === 'todo' && (
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="primary"
-                        startIcon={<PlayArrow />}
-                        onClick={() => updateAssignmentStatus(assignment.id, 'in-progress', 10)}
-                      >
-                        Start
-                      </Button>
-                    )}
-                    
-                    {assignment.status === 'in-progress' && (
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="success"
-                        startIcon={<CheckCircle />}
-                        onClick={() => updateAssignmentStatus(assignment.id, 'completed', 100)}
-                      >
-                        Complete
-                      </Button>
-                    )}
-                  </Stack>
-
-                  <IconButton
-                    size="small"
-                    onClick={() => handleEditAssignment(assignment)}
-                    sx={{ color: 'primary.main' }}
-                  >
-                    <Edit />
-                  </IconButton>
-                </Stack>
-              </CardActions>
-            </Card>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
         ))}
       </Box>
 
@@ -704,10 +670,8 @@ export default function AssignmentManager() {
 
       {/* Assignment Dialog */}
       <Dialog open={open} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ pb: 1 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>
-            {editingAssignment ? 'Edit Assignment' : 'Create New Assignment'}
-          </Typography>
+        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+          {editingAssignment ? 'Edit Assignment' : 'Create New Assignment'}
         </DialogTitle>
         <DialogContent>
           {error && (
@@ -782,18 +746,51 @@ export default function AssignmentManager() {
                   label="Assign To"
                   onChange={(e) => setFormData({...formData, assignee_id: e.target.value})}
                 >
-                  {MOCK_USERS.map((user) => (
-                    <MenuItem key={user.id} value={user.id}>
+                  <MenuItem value="">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Avatar sx={{ width: 24, height: 24, bgcolor: 'primary.main' }}>
+                        Me
+                      </Avatar>
+                      <span>Assign to myself</span>
+                    </Box>
+                  </MenuItem>
+                  {users.map((user) => (
+                    <MenuItem key={user.id} value={user.email}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem' }}>
-                          {user.avatar}
+                        <Avatar sx={{ width: 24, height: 24, bgcolor: 'secondary.main' }}>
+                          {user.name.charAt(0).toUpperCase()}
                         </Avatar>
                         <Box>
                           <Typography variant="body2">{user.name}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {user.role}
-                          </Typography>
+                          <Typography variant="caption" color="text.secondary">{user.email}</Typography>
                         </Box>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+              <FormControl fullWidth>
+                <InputLabel>Project</InputLabel>
+                <Select
+                  value={formData.project_id}
+                  label="Project"
+                  onChange={(e) => setFormData({...formData, project_id: e.target.value})}
+                >
+                  <MenuItem value="">
+                    <span>No Project</span>
+                  </MenuItem>
+                  {projects.map((project) => (
+                    <MenuItem key={project.id} value={project.id}>
+                      <Box>
+                        <Typography variant="body2">{project.name}</Typography>
+                        {project.description && (
+                          <Typography variant="caption" color="text.secondary">
+                            {project.description.substring(0, 50)}{project.description.length > 50 ? '...' : ''}
+                          </Typography>
+                        )}
                       </Box>
                     </MenuItem>
                   ))}

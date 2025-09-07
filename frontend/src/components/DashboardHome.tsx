@@ -1,5 +1,7 @@
+import CircularProgress from '@mui/material/CircularProgress';
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { apiService } from '../services/api';
 import {
   Typography,
   Box,
@@ -29,80 +31,57 @@ import {
   MoreVert,
 } from '@mui/icons-material';
 
-// Mock data
-const MOCK_STATS = {
-  total_assignments: 24,
-  completed_assignments: 12,
-  in_progress_assignments: 8,
-  pending_assignments: 4,
-  total_documents: 156,
-  active_projects: 3,
-};
+interface Assignment {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  progress: number;
+  due_date: string | null;
+  projects?: { name: string };
+  assignee_id?: string;
+}
 
-const MOCK_ASSIGNMENTS = [
-  {
-    id: '1',
-    title: 'Update API Documentation',
-    status: 'in-progress',
-    priority: 'high',
-    progress: 75,
-    due_date: '2024-12-30',
-    project: { name: 'SharePoint Integration' },
-    assignee: 'John Doe'
-  },
-  {
-    id: '2',
-    title: 'Security Audit Review',
-    status: 'todo',
-    priority: 'high',
-    progress: 0,
-    due_date: '2024-12-28',
-    project: { name: 'Security Enhancement' },
-    assignee: 'Sarah Wilson'
-  },
-  {
-    id: '3',
-    title: 'User Interface Improvements',
-    status: 'in-progress',
-    priority: 'medium',
-    progress: 45,
-    due_date: '2025-01-05',
-    project: { name: 'UI/UX Overhaul' },
-    assignee: 'Mike Johnson'
-  },
-  {
-    id: '4',
-    title: 'Database Optimization',
-    status: 'completed',
-    priority: 'medium',
-    progress: 100,
-    due_date: '2024-12-20',
-    project: { name: 'Performance Boost' },
-    assignee: 'Lisa Chen'
-  },
-  {
-    id: '5',
-    title: 'Mobile App Testing',
-    status: 'in-progress',
-    priority: 'low',
-    progress: 30,
-    due_date: '2025-01-10',
-    project: { name: 'Mobile Development' },
-    assignee: 'David Brown'
-  }
-];
-
-const MOCK_RECENT_ACTIVITY = [
-  { action: 'Assignment completed', item: 'Database Optimization', time: '2 hours ago', user: 'Lisa Chen' },
-  { action: 'Document uploaded', item: 'API Security Guidelines.pdf', time: '4 hours ago', user: 'John Doe' },
-  { action: 'Assignment created', item: 'Mobile App Testing', time: '1 day ago', user: 'Sarah Wilson' },
-  { action: 'Project updated', item: 'SharePoint Integration', time: '2 days ago', user: 'Mike Johnson' },
-];
+interface Stats {
+  total_assignments: number;
+  completed_assignments: number;
+  in_progress_assignments: number;
+  pending_assignments: number;
+  high_priority_assignments: number;
+  completion_rate: number;
+}
 
 export default function DashboardHome() {
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [assignmentsData, statsData] = await Promise.all([
+        apiService.getAssignments(),
+        apiService.getAssignmentStats()
+      ]);
+      
+      setAssignments(assignmentsData.slice(0, 5)); // Show only recent 5
+      setStats(statsData);
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to load dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getCompletionRate = () => {
-    return Math.round((MOCK_STATS.completed_assignments / MOCK_STATS.total_assignments) * 100);
+    return stats?.completion_rate || 0;
   };
 
   const getStatusColor = (status: string) => {
@@ -123,12 +102,33 @@ export default function DashboardHome() {
     }
   };
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+        <CircularProgress size={60} />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="h6" color="error" gutterBottom>
+          {error}
+        </Typography>
+        <Button variant="outlined" onClick={loadDashboardData}>
+          Try Again
+        </Button>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ width: '100%' }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', mb: 1 }}>
-          Good morning, Team! 👋
+          Good morning! 👋
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1.1rem' }}>
           Here's what's happening with your SharePoint AI projects today.
@@ -154,14 +154,14 @@ export default function DashboardHome() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
                 <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                  {MOCK_STATS.total_assignments}
+                  {stats?.total_assignments || 0}
                 </Typography>
                 <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 500 }}>
                   Total Assignments
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                   <ArrowUpward sx={{ fontSize: 16, mr: 0.5 }} />
-                  <Typography variant="caption">+12% from last month</Typography>
+                  <Typography variant="caption">Updated in real-time</Typography>
                 </Box>
               </Box>
               <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 60, height: 60 }}>
@@ -183,14 +183,14 @@ export default function DashboardHome() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
                 <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                  {MOCK_STATS.in_progress_assignments}
+                  {stats?.in_progress_assignments || 0}
                 </Typography>
                 <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 500 }}>
                   In Progress
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                   <ArrowUpward sx={{ fontSize: 16, mr: 0.5 }} />
-                  <Typography variant="caption">+8% this week</Typography>
+                  <Typography variant="caption">Active work</Typography>
                 </Box>
               </Box>
               <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 60, height: 60 }}>
@@ -212,14 +212,14 @@ export default function DashboardHome() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
                 <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                  {MOCK_STATS.completed_assignments}
+                  {stats?.completed_assignments || 0}
                 </Typography>
                 <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 500 }}>
                   Completed
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                   <ArrowUpward sx={{ fontSize: 16, mr: 0.5 }} />
-                  <Typography variant="caption">+15% this month</Typography>
+                  <Typography variant="caption">{getCompletionRate().toFixed(1)}% complete</Typography>
                 </Box>
               </Box>
               <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 60, height: 60 }}>
@@ -266,7 +266,7 @@ export default function DashboardHome() {
                 flexGrow: 1,
                 overflow: 'auto'
               }}>
-                {MOCK_ASSIGNMENTS.map((assignment, index) => (
+                {assignments.map((assignment, index) => (
                   <React.Fragment key={assignment.id}>
                     <ListItem>
                       <ListItemIcon>
@@ -289,27 +289,27 @@ export default function DashboardHome() {
                           </Box>
                         }
                         secondary={
-                          <Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <React.Fragment>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                               <Chip 
                                 label={assignment.status.replace('-', ' ')}
                                 color={getStatusColor(assignment.status) as any}
                                 size="small"
                                 sx={{ textTransform: 'capitalize', fontSize: '0.75rem' }}
                               />
-                              <Typography variant="caption" color="text.secondary">
-                                Due: {new Date(assignment.due_date).toLocaleDateString()}
+                              <Typography component="span" variant="caption" color="text.secondary">
+                                Due: {assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : 'No due date'}
                               </Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>
-                                {assignment.project.name}
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Typography component="span" variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>
+                                {assignment.projects?.name || 'No Project'}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                • {assignment.assignee}
+                              <Typography component="span" variant="caption" color="text.secondary">
+                                • {assignment.assignee_id || 'Unassigned'}
                               </Typography>
-                            </Box>
-                          </Box>
+                            </span>
+                          </React.Fragment>
                         }
                       />
                       <Box sx={{ minWidth: 120, textAlign: 'right' }}>
@@ -323,7 +323,7 @@ export default function DashboardHome() {
                         />
                       </Box>
                     </ListItem>
-                    {index < MOCK_ASSIGNMENTS.length - 1 && <Divider />}
+                    {index < assignments.length - 1 && <Divider />}
                   </React.Fragment>
                 ))}
               </List>
@@ -382,12 +382,12 @@ export default function DashboardHome() {
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>Completed</Typography>
                       <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>
-                        {MOCK_STATS.completed_assignments}
+                        {stats?.completed_assignments || 0}
                       </Typography>
                     </Box>
                     <LinearProgress 
                       variant="determinate" 
-                      value={(MOCK_STATS.completed_assignments / MOCK_STATS.total_assignments) * 100}
+                      value={stats ? (stats.completed_assignments / stats.total_assignments) * 100 : 0}
                       color="success"
                       sx={{ height: 8, borderRadius: 4 }}
                     />
@@ -397,12 +397,12 @@ export default function DashboardHome() {
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>In Progress</Typography>
                       <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
-                        {MOCK_STATS.in_progress_assignments}
+                        {stats?.in_progress_assignments || 0}
                       </Typography>
                     </Box>
                     <LinearProgress 
                       variant="determinate" 
-                      value={(MOCK_STATS.in_progress_assignments / MOCK_STATS.total_assignments) * 100}
+                      value={stats ? (stats.in_progress_assignments / stats.total_assignments) * 100 : 0}
                       sx={{ height: 8, borderRadius: 4 }}
                     />
                   </Box>
@@ -411,12 +411,12 @@ export default function DashboardHome() {
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>Pending</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                        {MOCK_STATS.pending_assignments}
+                        {stats?.pending_assignments || 0}
                       </Typography>
                     </Box>
                     <LinearProgress 
                       variant="determinate" 
-                      value={(MOCK_STATS.pending_assignments / MOCK_STATS.total_assignments) * 100}
+                      value={stats ? (stats.pending_assignments / stats.total_assignments) * 100 : 0}
                       color="inherit"
                       sx={{ height: 8, borderRadius: 4, '& .MuiLinearProgress-bar': { bgcolor: '#e0e0e0' } }}
                     />
@@ -452,35 +452,22 @@ export default function DashboardHome() {
                   flexGrow: 1,
                   overflow: 'auto'
                 }}>
-                  {MOCK_RECENT_ACTIVITY.map((activity, index) => (
-                    <React.Fragment key={index}>
-                      <ListItem>
-                        <ListItemIcon>
-                          <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.875rem' }}>
-                            {activity.user.split(' ').map(n => n[0]).join('')}
-                          </Avatar>
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                              {activity.action}
-                            </Typography>
-                          }
-                          secondary={
-                            <Box>
-                              <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500 }}>
-                                {activity.item}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {activity.time} • {activity.user}
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </ListItem>
-                      {index < MOCK_RECENT_ACTIVITY.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
+                  {assignments.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No recent activity yet.
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Create your first assignment to get started!
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Check your assignments above for recent activity
+                      </Typography>
+                    </Box>
+                  )}
                 </List>
               </CardContent>
             </Card>
