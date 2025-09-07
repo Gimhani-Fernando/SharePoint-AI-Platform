@@ -29,7 +29,7 @@
 | **AI Models Integrated** | 3+ | GPT-4, LangChain, Vector DB |
 | **API Endpoints** | 20+ | RESTful FastAPI Architecture |
 | **React Components** | 25+ | Material-UI Design System |
-| **Database Tables** | 8+ | Supabase PostgreSQL + pgvector |
+| **Database Tables** | 5+ | Supabase PostgreSQL + pgvector |
 | **Test Coverage** | 85%+ | Comprehensive Testing Suite |
 
 </div>
