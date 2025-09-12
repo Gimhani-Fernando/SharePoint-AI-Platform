@@ -799,9 +799,56 @@ export default function AssignmentManager() {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>Analysis</Typography>
                 </Box>
                 <Typography variant="body1" sx={{ lineHeight: 1.7 }}>
-                  {typeof currentInsights.analysis === 'string' && currentInsights.analysis.startsWith('```json') 
-                    ? currentInsights.analysis.replace(/```json|```/g, '').trim()
-                    : currentInsights.analysis}
+                  {(() => {
+                    let analysisText = currentInsights.analysis;
+                    
+                    // Handle different formats of analysis response
+                    if (typeof analysisText === 'string') {
+                      // Remove markdown code blocks if present
+                      if (analysisText.startsWith('```json') || analysisText.startsWith('```')) {
+                        analysisText = analysisText.replace(/```json|```/g, '').trim();
+                      }
+                      
+                      // Try to parse if it looks like JSON
+                      if (analysisText.startsWith('{') && analysisText.endsWith('}')) {
+                        try {
+                          const parsed = JSON.parse(analysisText);
+                          
+                          // Extract meaningful text from JSON
+                          if (parsed.overall_strategy) {
+                            return parsed.overall_strategy;
+                          } else if (parsed.analysis) {
+                            return parsed.analysis;
+                          } else if (parsed.relevant_documents || parsed.task_breakdown || parsed.tips_and_insights) {
+                            // If it's a JSON response with structured data, provide a summary
+                            const parts = [];
+                            if (parsed.relevant_documents?.length) {
+                              parts.push(`Found ${parsed.relevant_documents.length} relevant documents that can help with this assignment.`);
+                            }
+                            if (parsed.task_breakdown?.length) {
+                              parts.push(`Suggested ${parsed.task_breakdown.length} steps to complete this work efficiently.`);
+                            }
+                            if (parsed.tips_and_insights?.length) {
+                              parts.push(`Provided ${parsed.tips_and_insights.length} actionable recommendations.`);
+                            }
+                            return parts.join(' ') || 'AI analysis completed with structured insights.';
+                          }
+                          
+                          // Fallback: return first meaningful value from JSON
+                          const firstValue = Object.values(parsed).find(v => 
+                            typeof v === 'string' && v.length > 20
+                          );
+                          return firstValue || 'AI analysis completed successfully.';
+                        } catch (e) {
+                          // If JSON parsing fails, treat as regular text
+                          console.warn('Failed to parse analysis JSON:', e);
+                        }
+                      }
+                    }
+                    
+                    // Return as-is if not JSON or parsing failed
+                    return analysisText || 'AI analysis completed.';
+                  })()}
                 </Typography>
               </Card>
 
